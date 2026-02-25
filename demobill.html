@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Company</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #2678ad;
+            color: #333;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 800px;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input, button, select {
+            padding: 10px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+
+        button {
+            background-color: #0d283a;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #c27f00;
+        }
+
+        .item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .item input {
+            width: 30%;
+        }
+
+        .remove-btn {
+            background-color: #e74c3c;
+            margin-left: 10px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .remove-btn:hover {
+            background-color: #c0392b;
+        }
+
+        #billOutput {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f9f9f9;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+            font-style: italic;
+        }
+
+        .editable {
+            border: 1px solid #ccc;
+            padding: 5px;
+            border-radius: 4px;
+        }
+
+        .customer-info {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .customer-info input {
+            width: 48%;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Demo Billing</h1>
+        <form id="billForm">
+            <div class="customer-info">
+                <input type="text" id="customerName" placeholder="Demo Customer Name" required>
+                <input type="number" id="contactNumber" placeholder="Demo Contact Number" pattern="[0-9]*" title="Please enter numbers only" required>
+            </div>
+            <div id="items">
+                <div class="item">
+                    <input type="text" class="itemDescription" placeholder="Demo Item Description" required>
+                    <input type="number" class="quantity" placeholder="Demo Quantity" required>
+                    <input type="number" class="rate" placeholder="Demo Rate" required>
+                    <button type="button" class="remove-btn">X</button>
+                </div>
+            </div>
+            <button type="button" id="addItem">Demo Add Item</button>
+            <div>
+                <label for="subtotal">Demo Subtotal:</label>
+                <input type="number" id="subtotal" class="editable" readonly>
+            </div>
+            <div>
+                <label for="gst">Demo GST (%):</label>
+                <input type="number" id="gst" class="editable" value="18">
+            </div>
+            <div>
+                <label for="discount">Demo Discount:</label>
+                <input type="number" id="discount" class="editable" value="0">
+            </div>
+            <div>
+                <label for="grandTotal">Demo Grand Total:</label>
+                <input type="number" id="grandTotal" class="editable" readonly>
+            </div>
+            <div>
+                <label for="paymentStatus">Demo Payment Status:</label>
+                <select id="paymentStatus">
+                    <option value="Paid">Demo Paid</option>
+                    <option value="Unpaid">Demo Unpaid</option>
+                </select>
+            </div>
+            <button type="button" id="generateBill">Demo Generate Bill</button>
+        </form>
+        <div id="billOutput"></div>
+    </div>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+
+        function generateReceiptNumber(companyPrefix) {
+            const randomDigits = Math.floor(100 + Math.random() * 900);
+            return `${companyPrefix}${randomDigits}`;
+        }
+
+        function numberToWords(num) {
+            const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
+            const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+            const teens = ['Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+
+            if (num === 0) return 'Zero';
+
+            let words = [];
+            if ((num / 10000000) >= 1) {
+                words.push(numberToWords(Math.floor(num / 10000000)) + ' Crore');
+                num %= 10000000;
+            }
+            if ((num / 100000) >= 1) {
+                words.push(numberToWords(Math.floor(num / 100000)) + ' Lakh');
+                num %= 100000;
+            }
+            if ((num / 1000) >= 1) {
+                words.push(numberToWords(Math.floor(num / 1000)) + ' Thousand');
+                num %= 1000;
+            }
+            if ((num / 100) >= 1) {
+                words.push(numberToWords(Math.floor(num / 100)) + ' Hundred');
+                num %= 100;
+            }
+            if (num > 0) {
+                if (words.length > 0) {
+                    words.push('and');
+                }
+                if (num < 10) {
+                    words.push(ones[num]);
+                } else if (num < 20) {
+                    words.push(teens[num - 10]);
+                } else {
+                    words.push(tens[Math.floor(num / 10)]);
+                    if ((num % 10) > 0) {
+                        words.push(ones[num % 10]);
+                    }
+                }
+            }
+            return words.join(' ');
+        }
+
+        function updateSubtotal() {
+            const items = document.querySelectorAll('.item');
+            let subtotal = 0;
+            items.forEach(item => {
+                const quantity = parseFloat(item.querySelector('.quantity').value) || 0;
+                const rate = parseFloat(item.querySelector('.rate').value) || 0;
+                subtotal += quantity * rate;
+            });
+            document.getElementById('subtotal').value = subtotal.toFixed(2);
+            updateGrandTotal();
+        }
+
+        function updateGrandTotal() {
+            const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
+            const gst = parseFloat(document.getElementById('gst').value) || 0;
+            const discount = parseFloat(document.getElementById('discount').value) || 0;
+
+            const gstAmount = subtotal * (gst / 100);
+            const grandTotal = subtotal + gstAmount - discount;
+
+            document.getElementById('grandTotal').value = grandTotal.toFixed(2);
+        }
+
+        document.getElementById('addItem').addEventListener('click', function() {
+            const itemsDiv = document.getElementById('items');
+            const newItemDiv = document.createElement('div');
+            newItemDiv.className = 'item';
+            newItemDiv.innerHTML = `
+                <input type="text" class="itemDescription" placeholder="Demo Item Description" required>
+                <input type="number" class="quantity" placeholder="Demo Quantity" required>
+                <input type="number" class="rate" placeholder="Demo Rate" required>
+                <button type="button" class="remove-btn">X</button>
+            `;
+            itemsDiv.appendChild(newItemDiv);
+
+            // Add event listener to the remove button
+            newItemDiv.querySelector('.remove-btn').addEventListener('click', function() {
+                itemsDiv.removeChild(newItemDiv);
+                updateSubtotal();
+            });
+
+            // Add event listeners to the quantity and rate inputs
+            newItemDiv.querySelector('.quantity').addEventListener('input', updateSubtotal);
+            newItemDiv.querySelector('.rate').addEventListener('input', updateSubtotal);
+
+            updateSubtotal();
+        });
+
+        document.querySelectorAll('.quantity, .rate').forEach(input => {
+            input.addEventListener('input', updateSubtotal);
+        });
+
+        document.getElementById('gst').addEventListener('input', updateGrandTotal);
+        document.getElementById('discount').addEventListener('input', updateGrandTotal);
+
+        document.querySelectorAll('.remove-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const itemDiv = this.parentElement;
+                const itemsDiv = itemDiv.parentElement;
+                itemsDiv.removeChild(itemDiv);
+                updateSubtotal();
+            });
+        });
+
+        document.getElementById('generateBill').addEventListener('click', function() {
+            const customerName = document.getElementById('customerName').value;
+            const contactNumber = document.getElementById('contactNumber').value;
+            const items = document.querySelectorAll('.item');
+            const paymentStatus = document.getElementById('paymentStatus').value;
+
+            let billDetails = {
+                customerName,
+                contactNumber,
+                items: []
+            };
+
+            items.forEach(item => {
+                const description = item.querySelector('.itemDescription').value;
+                const quantity = parseFloat(item.querySelector('.quantity').value) || 0;
+                const rate = parseFloat(item.querySelector('.rate').value) || 0;
+                const total = quantity * rate;
+
+                billDetails.items.push({ description, quantity, rate, total });
+            });
+
+            const subtotal = parseFloat(document.getElementById('subtotal').value) || 0;
+            const gst = parseFloat(document.getElementById('gst').value) || 0;
+            const discount = parseFloat(document.getElementById('discount').value) || 0;
+            const grandTotal = parseFloat(document.getElementById('grandTotal').value) || 0;
+
+            const companyPrefix = "DEM";
+            const receiptNumber = generateReceiptNumber(companyPrefix);
+
+            // Generate PDF
+            const doc = new jsPDF();
+
+            // Company Information with dark blue background
+            doc.setFillColor(13, 40, 58);
+            doc.rect(0, 0, 210, 20, 'F');
+            doc.setFontSize(22);
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.text('DEMO COMPANY', 105, 15, { align: 'center' });
+
+            // Company details with reduced spacing
+            doc.setFontSize(10);
+            doc.setTextColor(0, 0, 0);
+            doc.setFont("helvetica", "bold");
+            doc.text('Demo Address : ', 105, 25, { align: 'center' });
+            doc.text('Demo Email: ', 105, 30, { align: 'center' });
+            doc.text('Demo Contact Number: ', 105, 35, { align: 'center' });
+
+            // Customer Information
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Demo Customer Name: ${customerName}`, 20, 50);
+
+            // Receipt Number and Date/Time aligned to the right
+            doc.text(`Demo Receipt No: ${receiptNumber}`, 190, 50, { align: 'right' });
+            doc.text(`Demo Date/Time: ${new Date().toLocaleString()}`, 190, 55, { align: 'right' });
+
+            doc.text(`Demo Contact Number: ${contactNumber}`, 20, 55);
+
+            // Table with styling and centered text
+            const tableData = billDetails.items.map((item, index) => [
+                index + 1,
+                item.description,
+                item.quantity,
+                item.rate,
+                item.total.toFixed(2)
+            ]);
+
+            doc.autoTable({
+                head: [['Demo S.No', 'Demo Item Description', 'Demo Quantity', 'Demo Rate', 'Demo Total']],
+                body: tableData,
+                startY: 70,
+                styles: {
+                    cellPadding: 2,
+                    fontSize: 10,
+                  	halign: 'center',
+                    overflow: 'linebreak',
+                    cellWidth: 'wrap',
+                    fillColor: [242, 242, 242]
+                },
+                columnStyles: {
+                    0: { halign: 'center' },
+                    1: { halign: 'left' },
+                    2: { halign: 'center' },
+                    3: { halign: 'right' },
+                    4: { halign: 'right' }
+                },
+                headStyles: { fillColor: [21, 67, 96], textColor: 255 }
+            });
+
+            // Totals aligned to the right with color
+            const finalY = doc.lastAutoTable.finalY;
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(21, 67, 96);
+            doc.text(`Demo Subtotal: ${subtotal.toFixed(2)}`, 190, finalY + 10, { align: 'right' });
+            doc.text(`Demo GST (${gst}%): ${(subtotal * gst / 100).toFixed(2)}`, 190, finalY + 15, { align: 'right' });
+            doc.text(`Demo Discount: ${discount.toFixed(2)}`, 190, finalY + 20, { align: 'right' });
+            doc.text(`Demo Grand Total: ${grandTotal.toFixed(2)}`, 190, finalY + 25, { align: 'right' });
+
+            // Amount in Words
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(0, 0, 0);
+            doc.text('Demo Amount in Words: ', 20, finalY + 35);
+            doc.setFont("helvetica", "normal");
+            doc.text(`${numberToWords(Math.round(grandTotal))} Rupees`, 65, finalY + 35, { maxWidth: 170 });
+
+            // Payment Status
+            const statusYPos = finalY + 45;
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Demo Payment Status: `, 20, statusYPos);
+            if (paymentStatus === 'DemoPaid') {
+                doc.setTextColor(0, 128, 0);
+              	doc.setFontSize(15);
+            } else {
+                doc.setTextColor(255, 0, 0);
+            }
+            doc.text(paymentStatus, 60, statusYPos);
+			doc.setFontSize(10);
+          	doc.setFont("helvetica", "normal");
+            doc.setTextColor(0, 0, 0);
+            doc.text('Thank you for your business!', 105, statusYPos + 10, { align: 'center' });
+
+            doc.save('bill_receipt.pdf');
+        });
+    </script>
+</body>
+</html>
